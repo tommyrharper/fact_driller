@@ -7,12 +7,21 @@ Pick n random facts, get a PDF, copy them out by hand.
 ./drill.py 5        # 5 facts
 ./drill.py -t em    # only facts/em
 ./drill.py --all    # every fact, shuffled
-./drill.py -l       # list facts
+./drill.py -l       # list facts, least-drilled first, with drill counts
 ./drill.py --new    # proof just-added facts (uncommitted, else last facts/ commit)
 ```
 
 Other flags: `--seed N` (reproducible pick), `-o path.pdf` (keep a copy),
-`--no-open`.
+`--no-open`, `--no-record`.
+
+## Spaced-ish repetition
+
+On quitting the viewer you are asked `Drilled all N? [Y/n]`; answering yes bumps
+each shown fact's counter in `drills.json` (gitignored, local to this machine).
+
+Selection weight is `1 / (1 + times drilled)`, so a fact drilled 9 times is
+picked about a tenth as often as an untouched one. `--all` and `--new` ignore
+the weighting and never prompt.
 
 The PDF is throwaway: it is built in a temp directory, opened in
 [`tdf`](https://github.com/itsjunetime/tdf) when it is on PATH (otherwise the

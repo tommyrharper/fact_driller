@@ -4,6 +4,7 @@
 import argparse
 import datetime
 import glob
+import json
 import os
 import random
 import shutil
@@ -13,6 +14,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 FACTS_DIR = os.path.join(ROOT, "facts")
+COUNTS_FILE = os.path.join(ROOT, "drills.json")
 
 PREAMBLE = r"""\documentclass[12pt]{article}
 \usepackage[a4paper,margin=2cm]{geometry}
@@ -43,6 +45,29 @@ def load_facts(topic=None):
             sys.exit("%s: first line must be '%% Title'" % rel)
         facts.append((lines[0].lstrip("% ").strip(), "\n".join(lines[1:]).strip(), rel))
     return facts
+
+
+def load_counts():
+    try:
+        with open(COUNTS_FILE) as f:
+            return json.load(f)
+    except (IOError, ValueError):
+        return {}
+
+
+def record_drill(facts):
+    counts = load_counts()
+    for _, _, rel in facts:
+        counts[rel] = counts.get(rel, 0) + 1
+    with open(COUNTS_FILE, "w") as f:
+        json.dump(counts, f, indent=0, sort_keys=True)
+
+
+def weighted_sample(facts, n, counts, seed=None):
+    """n facts, each weighted 1/(1 + times drilled) - Efraimidis-Spirakis keys."""
+    rng = random.Random(seed)
+    key = lambda f: rng.random() ** (1 + counts.get(f[2], 0))
+    return sorted(facts, key=key, reverse=True)[:n]
 
 
 def git(*argv):
@@ -112,6 +137,7 @@ def main():
                    help="proof uncommitted facts; if the tree is clean, those touched by REV "
                         "(default: the last commit that touched facts/)")
     p.add_argument("--no-open", action="store_true", help="do not open the PDF (needs --out)")
+    p.add_argument("--no-record", action="store_true", help="do not ask whether you drilled them")
     args = p.parse_args()
 
     if args.no_open and not args.out:
@@ -121,10 +147,12 @@ def main():
     if not facts:
         sys.exit("no facts found in %s" % FACTS_DIR)
 
+    counts = load_counts()
+
     if args.list:
-        for title, _, rel in facts:
-            print("%-50s %s" % (title, rel))
-        print("%d facts" % len(facts))
+        for title, _, rel in sorted(facts, key=lambda f: (counts.get(f[2], 0), f[2])):
+            print("%4d  %-50s %s" % (counts.get(rel, 0), title, rel))
+        print("%d facts, %d drills" % (len(facts), sum(counts.values())))
         return
 
     if args.new:
@@ -138,7 +166,7 @@ def main():
     else:
         if args.n > len(facts):
             print("only %d facts available" % len(facts), file=sys.stderr)
-        picked = random.Random(args.seed).sample(facts, min(args.n, len(facts)))
+        picked = weighted_sample(facts, min(args.n, len(facts)), counts, args.seed)
 
     with tempfile.TemporaryDirectory() as tmp:
         pdf = os.path.join(tmp, "drill.pdf")
@@ -149,6 +177,16 @@ def main():
         if not args.no_open:
             viewer = shutil.which("tdf") or ("open" if sys.platform == "darwin" else "xdg-open")
             subprocess.run([viewer, pdf])
+
+    if args.no_open or args.no_record or args.new or not sys.stdin.isatty():
+        return
+    try:
+        answer = input("Drilled all %d? [Y/n] " % len(picked)).strip().lower()
+    except EOFError:
+        return
+    if answer in ("", "y", "yes"):
+        record_drill(picked)
+        print("recorded; %d total drills" % sum(load_counts().values()))
 
 
 if __name__ == "__main__":
