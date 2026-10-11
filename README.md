@@ -8,7 +8,7 @@ Pick n random facts, get a PDF, copy them out by hand.
 ./drill.py -t em    # only facts/em
 ./drill.py --all    # every fact, shuffled
 ./drill.py -l       # list facts
-./drill.py --new    # proof whatever facts are uncommitted right now
+./drill.py --new    # proof just-added facts (uncommitted, else last facts/ commit)
 ```
 
 Other flags: `--seed N` (reproducible pick), `-o path.pdf` (keep a copy),
@@ -20,8 +20,10 @@ system viewer), and deleted when the viewer closes. Pass `-o` to keep one.
 
 ## Adding facts
 
-`--new` renders every fact git reports as added or modified, in order, so a
-freshly written `.tex` can be eyeballed before committing.
+`--new` renders just the facts you last touched, in order, so a fresh `.tex`
+can be eyeballed. It uses whatever is uncommitted under `facts/`; if the tree
+is clean it falls back to the last commit that touched `facts/`. Pass a rev to
+pick another: `./drill.py --new HEAD~3`.
 
 One file per fact under `facts/<topic>/<slug>.tex`. First line is the title as
 a LaTeX comment, the rest is body LaTeX dropped into an `enumerate` item:

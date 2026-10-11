@@ -45,20 +45,29 @@ def load_facts(topic=None):
     return facts
 
 
-def uncommitted():
-    """Fact paths (relative to facts/) that git reports as new or modified."""
+def git(*argv):
     proc = subprocess.run(
-        ["git", "-C", ROOT, "status", "--porcelain", "-uall", "--", FACTS_DIR],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
+        ["git", "-C", ROOT] + list(argv), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
     )
     if proc.returncode != 0:
         sys.exit("--new needs a git repository")
+    return proc.stdout.decode().splitlines()
+
+
+def recently_added(rev):
+    """Fact paths (relative to facts/) that are uncommitted, or touched by rev."""
+    lines = git("status", "--porcelain", "-uall", "--", FACTS_DIR)
+    source = "working tree"
+    if not lines:
+        if rev == "auto":
+            rev = (git("log", "-1", "--format=%H", "--", FACTS_DIR) or ["HEAD"])[0]
+        lines = ["   " + p for p in git("show", "--name-only", "--pretty=", rev, "--", FACTS_DIR)]
+        source = "%s (%s)" % (rev, "".join(git("show", "-s", "--pretty=%s", rev)))
     paths = set()
-    for line in proc.stdout.decode().splitlines():
+    for line in lines:
         path = line[3:].split(" -> ")[-1].strip('"')
         paths.add(os.path.relpath(os.path.join(ROOT, path), FACTS_DIR))
-    return paths
+    return paths, source
 
 
 def render(facts):
@@ -99,8 +108,9 @@ def main():
     p.add_argument("-o", "--out", help="also keep a copy of the PDF here")
     p.add_argument("-l", "--list", action="store_true", help="list available facts and exit")
     p.add_argument("--all", action="store_true", help="use every fact, in random order")
-    p.add_argument("--new", action="store_true",
-                   help="only facts git sees as new or modified, in order (to proof them)")
+    p.add_argument("--new", nargs="?", const="auto", metavar="REV",
+                   help="proof uncommitted facts; if the tree is clean, those touched by REV "
+                        "(default: the last commit that touched facts/)")
     p.add_argument("--no-open", action="store_true", help="do not open the PDF (needs --out)")
     args = p.parse_args()
 
@@ -118,10 +128,11 @@ def main():
         return
 
     if args.new:
-        changed = uncommitted()
+        changed, source = recently_added(args.new)
         picked = [f for f in facts if f[2] in changed]
         if not picked:
-            sys.exit("no uncommitted facts; proof a committed one with -t <path prefix>")
+            sys.exit("no new facts in %s; try --new <rev> or -t <path prefix>" % source)
+        print("proofing %d fact(s) from %s" % (len(picked), source), file=sys.stderr)
     elif args.all:
         picked = random.Random(args.seed).sample(facts, len(facts))
     else:
