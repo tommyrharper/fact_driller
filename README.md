@@ -8,6 +8,7 @@ Pick n random facts, get a PDF, copy them out by hand.
 ./drill.py -t em    # only facts/em
 ./drill.py --all    # every fact, shuffled
 ./drill.py -l       # list facts
+./drill.py --new    # proof whatever facts are uncommitted right now
 ```
 
 Other flags: `--seed N` (reproducible pick), `-o path.pdf` (keep a copy),
@@ -18,6 +19,9 @@ The PDF is throwaway: it is built in a temp directory, opened in
 system viewer), and deleted when the viewer closes. Pass `-o` to keep one.
 
 ## Adding facts
+
+`--new` renders every fact git reports as added or modified, in order, so a
+freshly written `.tex` can be eyeballed before committing.
 
 One file per fact under `facts/<topic>/<slug>.tex`. First line is the title as
 a LaTeX comment, the rest is body LaTeX dropped into an `enumerate` item:

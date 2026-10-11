@@ -45,6 +45,22 @@ def load_facts(topic=None):
     return facts
 
 
+def uncommitted():
+    """Fact paths (relative to facts/) that git reports as new or modified."""
+    proc = subprocess.run(
+        ["git", "-C", ROOT, "status", "--porcelain", "-uall", "--", FACTS_DIR],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    )
+    if proc.returncode != 0:
+        sys.exit("--new needs a git repository")
+    paths = set()
+    for line in proc.stdout.decode().splitlines():
+        path = line[3:].split(" -> ")[-1].strip('"')
+        paths.add(os.path.relpath(os.path.join(ROOT, path), FACTS_DIR))
+    return paths
+
+
 def render(facts):
     body = "\n".join(
         "\\item \\textbf{%s}\n%s" % (title, tex) for title, tex, _ in facts
@@ -83,6 +99,8 @@ def main():
     p.add_argument("-o", "--out", help="also keep a copy of the PDF here")
     p.add_argument("-l", "--list", action="store_true", help="list available facts and exit")
     p.add_argument("--all", action="store_true", help="use every fact, in random order")
+    p.add_argument("--new", action="store_true",
+                   help="only facts git sees as new or modified, in order (to proof them)")
     p.add_argument("--no-open", action="store_true", help="do not open the PDF (needs --out)")
     args = p.parse_args()
 
@@ -99,11 +117,17 @@ def main():
         print("%d facts" % len(facts))
         return
 
-    rng = random.Random(args.seed)
-    n = len(facts) if args.all else min(args.n, len(facts))
-    if not args.all and args.n > len(facts):
-        print("only %d facts available" % len(facts), file=sys.stderr)
-    picked = rng.sample(facts, n)
+    if args.new:
+        changed = uncommitted()
+        picked = [f for f in facts if f[2] in changed]
+        if not picked:
+            sys.exit("no uncommitted facts; proof a committed one with -t <path prefix>")
+    elif args.all:
+        picked = random.Random(args.seed).sample(facts, len(facts))
+    else:
+        if args.n > len(facts):
+            print("only %d facts available" % len(facts), file=sys.stderr)
+        picked = random.Random(args.seed).sample(facts, min(args.n, len(facts)))
 
     with tempfile.TemporaryDirectory() as tmp:
         pdf = os.path.join(tmp, "drill.pdf")
