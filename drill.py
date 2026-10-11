@@ -106,9 +106,10 @@ def main():
     stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     out = args.out or os.path.join(OUT_DIR, "drill-%s.pdf" % stamp)
     build_pdf(render(picked), out)
-    print(out)
     if not args.no_open:
-        subprocess.run(["open" if sys.platform == "darwin" else "xdg-open", out])
+        viewer = shutil.which("tdf") or ("open" if sys.platform == "darwin" else "xdg-open")
+        subprocess.run([viewer, out])
+    print(out)
 
 
 if __name__ == "__main__":
