@@ -76,7 +76,7 @@ def render(facts):
     )
     return (
         PREAMBLE.replace("DATE", datetime.date.today().isoformat())
-        .replace("COUNT", str(len(facts)))
+        .replace("COUNT facts", "%d fact%s" % (len(facts), "" if len(facts) == 1 else "s"))
         .replace("BODY", body)
     )
 
