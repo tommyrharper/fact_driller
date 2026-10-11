@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pick n random facts from facts/ and build a PDF to copy out by hand."""
+"""Pick n random facts from facts/ and show a throwaway PDF to copy out by hand."""
 
 import argparse
 import datetime
@@ -13,7 +13,6 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 FACTS_DIR = os.path.join(ROOT, "facts")
-OUT_DIR = os.path.join(ROOT, "out")
 
 PREAMBLE = r"""\documentclass[12pt]{article}
 \usepackage[a4paper,margin=2cm]{geometry}
@@ -70,9 +69,9 @@ def build_pdf(tex, out_path):
         )
         if proc.returncode != 0:
             sys.stdout.write(proc.stdout.decode("utf-8", "replace"))
-            shutil.copy(src, out_path + ".tex")
-            sys.exit("pdflatex failed; source kept at %s.tex" % out_path)
-        os.makedirs(os.path.dirname(out_path), exist_ok=True)
+            kept = os.path.join(ROOT, "drill-failed.tex")
+            shutil.copy(src, kept)
+            sys.exit("pdflatex failed; source kept at %s" % kept)
         shutil.copy(os.path.join(tmp, "drill.pdf"), out_path)
 
 
@@ -81,11 +80,14 @@ def main():
     p.add_argument("n", nargs="?", type=int, default=10, help="facts to drill (default 10)")
     p.add_argument("-t", "--topic", help="restrict to a facts/ subdirectory")
     p.add_argument("--seed", type=int, help="reproducible selection")
-    p.add_argument("-o", "--out", help="output PDF path")
+    p.add_argument("-o", "--out", help="also keep a copy of the PDF here")
     p.add_argument("-l", "--list", action="store_true", help="list available facts and exit")
     p.add_argument("--all", action="store_true", help="use every fact, in random order")
-    p.add_argument("--no-open", action="store_true", help="do not open the PDF")
+    p.add_argument("--no-open", action="store_true", help="do not open the PDF (needs --out)")
     args = p.parse_args()
+
+    if args.no_open and not args.out:
+        p.error("--no-open without --out would build a PDF and throw it away")
 
     facts = load_facts(args.topic)
     if not facts:
@@ -103,13 +105,15 @@ def main():
         print("only %d facts available" % len(facts), file=sys.stderr)
     picked = rng.sample(facts, n)
 
-    stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    out = args.out or os.path.join(OUT_DIR, "drill-%s.pdf" % stamp)
-    build_pdf(render(picked), out)
-    if not args.no_open:
-        viewer = shutil.which("tdf") or ("open" if sys.platform == "darwin" else "xdg-open")
-        subprocess.run([viewer, out])
-    print(out)
+    with tempfile.TemporaryDirectory() as tmp:
+        pdf = os.path.join(tmp, "drill.pdf")
+        build_pdf(render(picked), pdf)
+        if args.out:
+            shutil.copy(pdf, args.out)
+            print(args.out)
+        if not args.no_open:
+            viewer = shutil.which("tdf") or ("open" if sys.platform == "darwin" else "xdg-open")
+            subprocess.run([viewer, pdf])
 
 
 if __name__ == "__main__":

@@ -10,10 +10,12 @@ Pick n random facts, get a PDF, copy them out by hand.
 ./drill.py -l       # list facts
 ```
 
-Other flags: `--seed N` (reproducible pick), `-o path.pdf`, `--no-open`.
-PDFs land in `out/` (gitignored), named by timestamp. They open in
-[`tdf`](https://github.com/itsjunetime/tdf) when it is on PATH, otherwise the
-system viewer.
+Other flags: `--seed N` (reproducible pick), `-o path.pdf` (keep a copy),
+`--no-open`.
+
+The PDF is throwaway: it is built in a temp directory, opened in
+[`tdf`](https://github.com/itsjunetime/tdf) when it is on PATH (otherwise the
+system viewer), and deleted when the viewer closes. Pass `-o` to keep one.
 
 ## Adding facts
 
